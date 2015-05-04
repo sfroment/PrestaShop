@@ -475,8 +475,8 @@ class CartRuleCore extends ObjectModel
 	 */
 	public function checkValidity(Context $context, $alreadyInCart = false, $display_error = true, $check_carrier = true)
 	{
-		if (!CartRule::isFeatureActive())
-			return false;
+		if (!$this->isFeatureActive())
+			return (!$display_error) ? true : false;
 
 		if (!$this->active)
 			return (!$display_error) ? false : Tools::displayError('This voucher is disabled');
@@ -636,8 +636,7 @@ class CartRuleCore extends ObjectModel
 		if (!$nb_products)
 			return (!$display_error) ? false : Tools::displayError('Cart is empty');
 
-		if (!$display_error)
-			return true;
+		return (!$display_error) ? true : false;
 	}
 
 	protected function checkProductRestrictions(Context $context, $return_products = false, $display_error = true, $already_in_cart = false)
