@@ -519,6 +519,33 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Check if the current customer country is in the cart rule country
+	 *
+	 * @param int $id_address_delivery
+	 * @return bool|null
+	 */
+	public function checkCountryRestriction($id_address_delivery)
+	{
+		if ($id_address_delivery > 0)
+		{
+			$id_cart_rule = (int)Db::getInstance()->getValue('
+				SELECT crc.id_cart_rule
+				FROM '._DB_PREFIX_.'cart_rule_country crc
+				WHERE crc.id_cart_rule = '.(int)$this->id.'
+				AND crc.id_country = (
+					SELECT a.id_country
+					FROM '._DB_PREFIX_.'address a
+					WHERE a.id_address = '.(int)$id_address_delivery.'
+					LIMIT 1
+					)');
+
+			return ($id_cart_rule > 0 ? true : false);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -559,12 +586,8 @@ class CartRuleCore extends ObjectModel
 		{
 			if (!$context->cart->id_address_delivery)
 				return (!$display_error) ? false : Tools::displayError('You must choose a delivery address before applying this voucher to your order');
-			$id_cart_rule = (int)Db::getInstance()->getValue('
-			SELECT crc.id_cart_rule
-			FROM '._DB_PREFIX_.'cart_rule_country crc
-			WHERE crc.id_cart_rule = '.(int)$this->id.'
-			AND crc.id_country = (SELECT a.id_country FROM '._DB_PREFIX_.'address a WHERE a.id_address = '.(int)$context->cart->id_address_delivery.' LIMIT 1)');
-			if (!$id_cart_rule)
+
+			if ($this->checkCountryRestriction($context->cart->id_address_delivery) != true)
 				return (!$display_error) ? false : Tools::displayError('You cannot use this voucher in your country of delivery');
 		}
 
