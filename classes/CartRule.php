@@ -546,6 +546,30 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Check if the carrier is available for the Cart rule
+	 *
+	 * @param $id_carrier
+	 * @return bool|null
+	 */
+	public function checkCarrierRestriction($id_carrier)
+	{
+		if ($id_carrier > 0)
+		{
+			$id_cart_rule = (int)Db::getInstance()->getValue('
+				SELECT crc.id_cart_rule
+				FROM '._DB_PREFIX_.'cart_rule_carrier crc
+				INNER JOIN '._DB_PREFIX_.'carrier c
+					ON (c.id_reference = crc.id_carrier AND c.deleted = 0)
+				WHERE crc.id_cart_rule = '.(int)$this->id.'
+				AND c.id_carrier = '.(int)$id_carrier);
+
+			return ($id_cart_rule > 0 ? true : false);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -596,13 +620,8 @@ class CartRuleCore extends ObjectModel
 		{
 			if (!$context->cart->id_carrier)
 				return (!$display_error) ? false : Tools::displayError('You must choose a carrier before applying this voucher to your order');
-			$id_cart_rule = (int)Db::getInstance()->getValue('
-			SELECT crc.id_cart_rule
-			FROM '._DB_PREFIX_.'cart_rule_carrier crc
-			INNER JOIN '._DB_PREFIX_.'carrier c ON (c.id_reference = crc.id_carrier AND c.deleted = 0)
-			WHERE crc.id_cart_rule = '.(int)$this->id.'
-			AND c.id_carrier = '.(int)$context->cart->id_carrier);
-			if (!$id_cart_rule)
+
+			if ($this->checkCarrierRestriction($context->cart->id_carrier) != true)
 				return (!$display_error) ? false : Tools::displayError('You cannot use this voucher with this carrier');
 		}
 
