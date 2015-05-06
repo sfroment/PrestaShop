@@ -492,6 +492,33 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Check if the current customer group can use this Cart rule,
+	 * if the customer is not logged in, the default group is Visitors
+	 *
+	 * @param int $id_customer
+	 * @param int $ps_unidentified_group The configuration value for PS_UNIDENTIFIED_GROUP
+	 * @return bool|null
+	 */
+	public function checkGroupRestriction($id_customer, $ps_unidentified_group)
+	{
+		if ($id_customer > 0 || $ps_unidentified_group != null)
+		{
+			$id_cart_rule = (int)Db::getInstance()->getValue('
+				SELECT crg.id_cart_rule
+				FROM '._DB_PREFIX_.'cart_rule_group crg
+				WHERE crg.id_cart_rule = '.(int)$this->id.'
+				AND crg.id_group '.($id_customer > 0 ?
+					'IN (SELECT cg.id_group FROM '._DB_PREFIX_.'customer_group cg WHERE cg.id_customer = '.
+					(int)$id_customer.')'
+					: '= '.(int)Configuration::get('PS_UNIDENTIFIED_GROUP')));
+
+			return ($id_cart_rule > 0 ? true : false);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -523,17 +550,9 @@ class CartRuleCore extends ObjectModel
 				return (!$display_error) ? false : Tools::displayError('You cannot use this voucher anymore (usage limit reached)');
 		}
 
-		// Get an intersection of the customer groups and the cart rule groups (if the customer is not logged in, the default group is Visitors)
-		if ($this->group_restriction)
-		{
-			$id_cart_rule = (int)Db::getInstance()->getValue('
-			SELECT crg.id_cart_rule
-			FROM '._DB_PREFIX_.'cart_rule_group crg
-			WHERE crg.id_cart_rule = '.(int)$this->id.'
-			AND crg.id_group '.($context->cart->id_customer ? 'IN (SELECT cg.id_group FROM '._DB_PREFIX_.'customer_group cg WHERE cg.id_customer = '.(int)$context->cart->id_customer.')' : '= '.(int)Configuration::get('PS_UNIDENTIFIED_GROUP')));
-			if (!$id_cart_rule)
+		if ($this->group_restriction &&
+			$this->checkGroupRestriction($context->cart->id_customer, $configuration->get('PS_UNIDENTIFIED_GROUP')) != true)
 				return (!$display_error) ? false : Tools::displayError('You cannot use this voucher');
-		}
 
 		// Check if the customer delivery address is usable with the cart rule
 		if ($this->country_restriction)
