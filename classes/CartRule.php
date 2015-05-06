@@ -466,6 +466,32 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Get the number of time the customer user the Cart rule
+	 *
+	 * @param int $id_customer
+	 * @param int $ps_os_error The configuration value for PS_OS_ERROR
+	 * @return int
+	 */
+	public function getNbOfUseByCustomer($id_customer, $ps_os_error)
+	{
+		if ($id_customer > 0 && $ps_os_error != null)
+		{
+			$quantity_used = Db::getInstance()->getValue('
+				SELECT count(*)
+				FROM '._DB_PREFIX_.'orders o
+				LEFT JOIN '._DB_PREFIX_.'order_cart_rule od ON o.id_order = od.id_order
+				WHERE o.id_customer = '.(int)$id_customer.'
+				AND od.id_cart_rule = '.(int)$this->id.'
+				AND '.(int)$ps_os_error.' != o.current_state
+			');
+
+			return $quantity_used;
+		}
+
+		return -1;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -487,17 +513,13 @@ class CartRuleCore extends ObjectModel
 		if (strtotime($this->date_to) < time())
 			return (!$display_error) ? false : Tools::displayError('This voucher has expired');
 
+		$configuration = Adapter_ServiceLocator::get('Adapter_Configuration');
+
 		if ($context->cart->id_customer)
 		{
-			$quantityUsed = Db::getInstance()->getValue('
-			SELECT count(*)
-			FROM '._DB_PREFIX_.'orders o
-			LEFT JOIN '._DB_PREFIX_.'order_cart_rule od ON o.id_order = od.id_order
-			WHERE o.id_customer = '.$context->cart->id_customer.'
-			AND od.id_cart_rule = '.(int)$this->id.'
-			AND '.(int)Configuration::get('PS_OS_ERROR').' != o.current_state
-			');
-			if ($quantityUsed + 1 > $this->quantity_per_user)
+			$quantityUsed = $this->getNbOfUseByCustomer($context->cart->id_customer, $configuration->get('PS_OS_ERROR'));
+
+			if ($quantityUsed != -1 && $quantityUsed + 1 > $this->quantity_per_user)
 				return (!$display_error) ? false : Tools::displayError('You cannot use this voucher anymore (usage limit reached)');
 		}
 
