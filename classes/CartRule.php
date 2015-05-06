@@ -592,6 +592,50 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Check if the cart as the minimum amount
+	 * in function of the currency of the cart,
+	 * to apply the cart rule
+	 *
+	 * @param $cart Cart instance
+	 * @param $currency Currency function
+	 * @return bool|null
+	 */
+	public function checkMinimumAmount($cart, $currency)
+	{
+		if ($cart != null && $currency != null)
+		{
+			$tools = Adapter_ServiceLocator::get('Adapter_Tools');
+			// Minimum amount is converted to the contextual currency
+			$minimum_amount = $this->minimum_amount;
+			if ($this->minimum_amount_currency != $currency->id)
+				$minimum_amount = $tools->convertPriceFull($minimum_amount, new Currency($this->minimum_amount_currency), $currency);
+
+			$cartTotal = $cart->getOrderTotal($this->minimum_amount_tax, Cart::ONLY_PRODUCTS);
+			if ($this->minimum_amount_shipping)
+				$cartTotal += $cart->getOrderTotal($this->minimum_amount_tax, Cart::ONLY_SHIPPING);
+			$products = $cart->getProducts();
+			$cart_rules = $cart->getCartRules();
+
+			foreach ($cart_rules as &$cart_rule)
+			{
+				if ($cart_rule['gift_product'])
+				{
+					foreach ($products as $key => &$product)
+					{
+						if (empty($product['gift']) && $product['id_product'] == $cart_rule['gift_product'] &&
+							$product['id_product_attribute'] == $cart_rule['gift_product_attribute'])
+							$cartTotal = $tools->ps_round($cartTotal - $product[$this->minimum_amount_tax ? 'price_wt' : 'price'], (int)$currency->decimals * _PS_PRICE_COMPUTE_PRECISION_);
+					}
+				}
+			}
+
+			return ($cartTotal < $minimum_amount ? false : true);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -665,33 +709,14 @@ class CartRuleCore extends ObjectModel
 		// Check if the cart rule is only usable by a specific customer, and if the current customer is the right one
 		if ($this->id_customer && $context->cart->id_customer != $this->id_customer)
 		{
-			if (!Context::getContext()->customer->isLogged())
+			if (!$context->customer->isLogged())
 				return (!$display_error) ? false : (Tools::displayError('You cannot use this voucher').' - '.Tools::displayError('Please log in first'));
 			return (!$display_error) ? false : Tools::displayError('You cannot use this voucher');
 		}
 
-		if ($this->minimum_amount && $check_carrier)
-		{
-			// Minimum amount is converted to the contextual currency
-			$minimum_amount = $this->minimum_amount;
-			if ($this->minimum_amount_currency != Context::getContext()->currency->id)
-				$minimum_amount = Tools::convertPriceFull($minimum_amount, new Currency($this->minimum_amount_currency), Context::getContext()->currency);
-
-			$cartTotal = $context->cart->getOrderTotal($this->minimum_amount_tax, Cart::ONLY_PRODUCTS);
-			if ($this->minimum_amount_shipping)
-				$cartTotal += $context->cart->getOrderTotal($this->minimum_amount_tax, Cart::ONLY_SHIPPING);
-			$products = $context->cart->getProducts();
-			$cart_rules = $context->cart->getCartRules();
-
-			foreach ($cart_rules as &$cart_rule)
-				if ($cart_rule['gift_product'])
-					foreach ($products as $key => &$product)
-						if (empty($product['gift']) && $product['id_product'] == $cart_rule['gift_product'] && $product['id_product_attribute'] == $cart_rule['gift_product_attribute'])
-							$cartTotal = Tools::ps_round($cartTotal - $product[$this->minimum_amount_tax ? 'price_wt' : 'price'], (int)$context->currency->decimals * _PS_PRICE_COMPUTE_PRECISION_);
-
-			if ($cartTotal < $minimum_amount)
+		if ($this->minimum_amount && $check_carrier
+			&& $this->checkMinimumAmount($context->cart, $context->currency) != true)
 				return (!$display_error) ? false : Tools::displayError('You have not reached the minimum amount required to use this voucher');
-		}
 
 		/* This loop checks:
 			- if the voucher is already in the cart
