@@ -570,6 +570,28 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Check if the shop is available for the Cart rule
+	 *
+	 * @param $id_shop
+	 * @return bool|null
+	 */
+	public function checkShopRestriction($id_shop)
+	{
+		if ($id_shop > 0)
+		{
+			$id_cart_rule = (int)Db::getInstance()->getValue('
+				SELECT crs.id_cart_rule
+				FROM '._DB_PREFIX_.'cart_rule_shop crs
+				WHERE crs.id_cart_rule = '.(int)$this->id.'
+				AND crs.id_shop = '.(int)$id_shop);
+
+			return ($id_cart_rule > 0 ? true : false);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -626,16 +648,9 @@ class CartRuleCore extends ObjectModel
 		}
 
 		// Check if the cart rules appliy to the shop browsed by the customer
-		if ($this->shop_restriction && $context->shop->id && Shop::isFeatureActive())
-		{
-			$id_cart_rule = (int)Db::getInstance()->getValue('
-			SELECT crs.id_cart_rule
-			FROM '._DB_PREFIX_.'cart_rule_shop crs
-			WHERE crs.id_cart_rule = '.(int)$this->id.'
-			AND crs.id_shop = '.(int)$context->shop->id);
-			if (!$id_cart_rule)
+		if ($this->shop_restriction && $context->shop->id && Shop::isFeatureActive() &&
+			$this->checkShopRestriction($context->shop->id) != true)
 				return (!$display_error) ? false : Tools::displayError('You cannot use this voucher');
-		}
 
 		// Check if the products chosen by the customer are usable with the cart rule
 		if ($this->product_restriction)
