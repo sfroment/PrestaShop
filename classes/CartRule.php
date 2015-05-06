@@ -636,6 +636,30 @@ class CartRuleCore extends ObjectModel
 	}
 
 	/**
+	 * Check if another cart rule is combinable with the current
+	 *
+	 * @param $id_cart_rule
+	 * @return bool|null
+	 */
+	public function checkCartRuleRestriction($id_cart_rule)
+	{
+		if ($id_cart_rule)
+		{
+			$combinable = Db::getInstance()->getValue('
+				SELECT id_cart_rule_1
+				FROM '._DB_PREFIX_.'cart_rule_combination
+				WHERE (id_cart_rule_1 = '.(int)$this->id.'
+						AND id_cart_rule_2 = '.(int)$id_cart_rule.')
+				OR (id_cart_rule_2 = '.(int)$this->id.'
+					AND id_cart_rule_1 = '.(int)$id_cart_rule.')');
+
+			return ($combinable ? true : false);
+		}
+
+		return null;
+	}
+
+	/**
 	 * Check if this cart rule can be applied
 	 *
 	 * @param Context $context
@@ -724,28 +748,23 @@ class CartRuleCore extends ObjectModel
 			- if there are products in the cart (gifts excluded)
 			Important note: this MUST be the last check, because if the tested cart rule has priority over a non combinable one in the cart, we will switch them
 		*/
-		$nb_products = Cart::getNbProducts($context->cart->id);
-		$otherCartRules = array();
+		$nb_products = $context->cart->getNbProducts($context->cart->id);
+		$other_cart_rules = array();
 		if ($check_carrier)
-			$otherCartRules = $context->cart->getCartRules();
-		if (count($otherCartRules))
-			foreach ($otherCartRules as $otherCartRule)
+			$other_cart_rules = $context->cart->getCartRules();
+		if (count($other_cart_rules))
+			foreach ($other_cart_rules as $other_cart_rule)
 			{
-				if ($otherCartRule['id_cart_rule'] == $this->id && !$alreadyInCart)
+				if ($other_cart_rule['id_cart_rule'] == $this->id && !$alreadyInCart)
 					return (!$display_error) ? false : Tools::displayError('This voucher is already in your cart');
-				if ($otherCartRule['gift_product'])
+				if ($other_cart_rule['gift_product'])
 					--$nb_products;
 
-				if ($this->cart_rule_restriction && $otherCartRule['cart_rule_restriction'] && $otherCartRule['id_cart_rule'] != $this->id)
+				if ($this->cart_rule_restriction && $other_cart_rule['cart_rule_restriction'] && $other_cart_rule['id_cart_rule'] != $this->id)
 				{
-					$combinable = Db::getInstance()->getValue('
-					SELECT id_cart_rule_1
-					FROM '._DB_PREFIX_.'cart_rule_combination
-					WHERE (id_cart_rule_1 = '.(int)$this->id.' AND id_cart_rule_2 = '.(int)$otherCartRule['id_cart_rule'].')
-					OR (id_cart_rule_2 = '.(int)$this->id.' AND id_cart_rule_1 = '.(int)$otherCartRule['id_cart_rule'].')');
-					if (!$combinable)
+					if ($this->checkCartRuleRestriction($other_cart_rule['id_cart_rule']) != true)
 					{
-						$cart_rule = new CartRule((int)$otherCartRule['id_cart_rule'], $context->cart->id_lang);
+						$cart_rule = new CartRule((int)$other_cart_rule['id_cart_rule'], $context->cart->id_lang);
 						// The cart rules are not combinable and the cart rule currently in the cart has priority over the one tested
 						if ($cart_rule->priority <= $this->priority)
 							return (!$display_error) ? false : Tools::displayError('This voucher is not combinable with an other voucher already in your cart:').' '.$cart_rule->name;
