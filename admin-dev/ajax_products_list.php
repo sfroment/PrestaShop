@@ -50,8 +50,8 @@ else
 	$excludeIds = '';
 
 // Excluding downloadable products from packs because download from pack is not supported
-$excludeVirtuals = (bool)Tools::getValue('excludeVirtuals', true);
-$exclude_packs = (bool)Tools::getValue('exclude_packs', true);
+$excludeVirtuals = (bool)Tools::getValue('excludeVirtuals', false);
+$exclude_packs = (bool)Tools::getValue('exclude_packs', false);
 
 $context = Context::getContext();
 
